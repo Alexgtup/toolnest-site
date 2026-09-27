@@ -1,0 +1,59 @@
+name: Notify Yandex IndexNow
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "sitemap.xml"
+      - "**/*.html"
+      - "9577e669864c32ece6c3603f0d674ad360dd3b89.txt"
+
+jobs:
+  indexnow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for GitHub Pages
+        run: sleep 30
+
+      - name: Verify IndexNow key file
+        run: curl -fsS "https://alexgtup.github.io/toolnest-site/9577e669864c32ece6c3603f0d674ad360dd3b89.txt"
+
+      - name: Build URL batch
+        run: |
+          python3 - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          from urllib.parse import urlparse
+          key = "9577e669864c32ece6c3603f0d674ad360dd3b89"
+          base = "https://alexgtup.github.io/toolnest-site"
+          root = ET.parse("sitemap.xml").getroot()
+          urls = []
+          for el in root.findall("{http://www.sitemaps.org/schemas/sitemap/0.9}url"):
+              loc = el.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
+              if loc is None or not loc.text:
+                  continue
+              path = urlparse(loc.text.strip()).path
+              urls.append(base + (path if path != "/" else "/"))
+          payload = {
+              "host": "alexgtup.github.io",
+              "key": key,
+              "keyLocation": base + "/" + key + ".txt",
+              "urlList": urls,
+          }
+          with open("indexnow.json","w",encoding="utf-8") as f:
+              json.dump(payload,f,ensure_ascii=False)
+          print("Prepared",len(urls),"URLs")
+          PY
+
+      - name: Submit to Yandex
+        run: |
+          code=$(curl -sS -o indexnow-response.txt -w "%{http_code}" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            --data-binary @indexnow.json \
+            https://yandex.com/indexnow)
+          echo "HTTP $code"
+          cat indexnow-response.txt || true
+          test "$code" = "200" -o "$code" = "202"
