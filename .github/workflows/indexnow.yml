@@ -26,7 +26,6 @@ jobs:
           python3 - <<'PY'
           import json
           import xml.etree.ElementTree as ET
-          from urllib.parse import urlparse
           key = "9577e669864c32ece6c3603f0d674ad360dd3b89"
           base = "https://alexgtup.github.io/toolnest-site"
           root = ET.parse("sitemap.xml").getroot()
@@ -35,8 +34,7 @@ jobs:
               loc = el.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
               if loc is None or not loc.text:
                   continue
-              path = urlparse(loc.text.strip()).path
-              urls.append(base + (path if path != "/" else "/"))
+              urls.append(loc.text.strip())
           payload = {
               "host": "alexgtup.github.io",
               "key": key,
