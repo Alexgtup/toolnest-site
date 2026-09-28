@@ -1,0 +1,68 @@
+name: Deploy standalone Cloudflare Pages sites
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "renocalc/**"
+      - "roadbudget/**"
+      - "invoicelab/**"
+      - ".github/workflows/deploy-standalone-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standalone-cloudflare-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check Cloudflare credentials
+        shell: bash
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Cloudflare GitHub secrets are not configured."
+            exit 2
+          fi
+          echo "Cloudflare credentials are configured."
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Create projects if needed
+        shell: bash
+        run: |
+          set +e
+          npx --yes wrangler@latest pages project create renocalc --production-branch=main
+          npx --yes wrangler@latest pages project create roadbudget --production-branch=main
+          npx --yes wrangler@latest pages project create invoicelab --production-branch=main
+          exit 0
+
+      - name: Deploy RenoCalc
+        run: npx --yes wrangler@latest pages deploy renocalc --project-name=renocalc --branch=main
+
+      - name: Deploy RoadBudget
+        run: npx --yes wrangler@latest pages deploy roadbudget --project-name=roadbudget --branch=main
+
+      - name: Deploy InvoiceLab
+        run: npx --yes wrangler@latest pages deploy invoicelab --project-name=invoicelab --branch=main
+
+      - name: Verify live roots
+        shell: bash
+        run: |
+          set -e
+          for url in https://renocalc.pages.dev/ https://roadbudget.pages.dev/ https://invoicelab.pages.dev/; do
+            echo "Checking $url"
+            curl -fIsS --retry 6 --retry-delay 5 "$url" >/dev/null
+          done
