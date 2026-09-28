@@ -47,6 +47,23 @@ jobs:
             fi
           done
 
+
+
+      - name: Verify canonical URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_canonical() {
+            host="$1"
+            expected="$2"
+            html=$(curl --max-time 15 -fsSL "https://$host/")
+            echo "$html" | grep -F "<link rel=\"canonical\" href=\"$expected\"" >/dev/null
+            echo "$host canonical -> $expected"
+          }
+          check_canonical "renocalc-3p1.pages.dev" "https://renocalc-3p1.pages.dev/"
+          check_canonical "roadbudget.pages.dev" "https://roadbudget.pages.dev/"
+          check_canonical "invoicelab-pch.pages.dev" "https://invoicelab-pch.pages.dev/"
+
       - name: Submit canonical roots to IndexNow and Yandex
         shell: bash
         run: |
