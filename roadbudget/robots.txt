@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://roadbudget.pages.dev/sitemap.xml
