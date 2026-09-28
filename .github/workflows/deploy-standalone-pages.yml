@@ -1,13 +1,6 @@
 name: Deploy standalone Cloudflare Pages sites
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "renocalc/**"
-      - "roadbudget/**"
-      - "invoicelab/**"
-      - ".github/workflows/deploy-standalone-pages.yml"
   workflow_dispatch:
 
 permissions:
