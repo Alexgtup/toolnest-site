@@ -19,51 +19,68 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for Cloudflare Pages deployment
+      - name: Wait for standalone Cloudflare sites
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://toolnest-btq.pages.dev"
           KEY="9577e669864c32ece6c3603f0d674ad360dd3b89"
-          for attempt in $(seq 1 36); do
-            if curl -fsS "$BASE/$KEY.txt" | grep -qx "$KEY" &&
-               curl -fsS "$BASE/renocalc/" >/dev/null &&
-               curl -fsS "$BASE/roadbudget/" >/dev/null &&
-               curl -fsS "$BASE/invoicelab/" >/dev/null; then
-              echo "Cloudflare Pages routes are live."
-              exit 0
+          hosts=(
+            "toolnest-btq.pages.dev"
+            "renocalc-3p1.pages.dev"
+            "roadbudget.pages.dev"
+            "invoicelab-pch.pages.dev"
+          )
+          for host in "${hosts[@]}"; do
+            ok=0
+            for attempt in $(seq 1 36); do
+              if curl --max-time 10 -fsS "https://$host/" >/dev/null &&
+                 curl --max-time 10 -fsS "https://$host/$KEY.txt" | grep -qx "$KEY"; then
+                echo "$host is live and its IndexNow key is reachable."
+                ok=1
+                break
+              fi
+              sleep 10
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::$host did not become ready in time."
+              exit 1
             fi
-            echo "Waiting for Cloudflare Pages... $attempt/36"
-            sleep 10
           done
-          echo "::error::Cloudflare Pages did not expose the new routes in time."
-          exit 1
 
-      - name: Submit changed product URLs to IndexNow and Yandex
+      - name: Submit canonical roots to IndexNow and Yandex
         shell: bash
         run: |
           set -euo pipefail
-          cat > /tmp/indexnow.json <<'JSON'
+          KEY="9577e669864c32ece6c3603f0d674ad360dd3b89"
+          hosts=(
+            "toolnest-btq.pages.dev"
+            "renocalc-3p1.pages.dev"
+            "roadbudget.pages.dev"
+            "invoicelab-pch.pages.dev"
+          )
+
+          submit_host() {
+            host="$1"
+            cat > /tmp/indexnow.json <<JSON
           {
-            "host": "toolnest-btq.pages.dev",
-            "key": "9577e669864c32ece6c3603f0d674ad360dd3b89",
-            "keyLocation": "https://toolnest-btq.pages.dev/9577e669864c32ece6c3603f0d674ad360dd3b89.txt",
-            "urlList": [
-              "https://toolnest-btq.pages.dev/",
-              "https://toolnest-btq.pages.dev/renocalc/",
-              "https://toolnest-btq.pages.dev/roadbudget/",
-              "https://toolnest-btq.pages.dev/invoicelab/"
-            ]
+            "host": "$host",
+            "key": "$KEY",
+            "keyLocation": "https://$host/$KEY.txt",
+            "urlList": ["https://$host/"]
           }
           JSON
+            for endpoint in "https://api.indexnow.org/indexnow" "https://yandex.com/indexnow"; do
+              code=$(curl --max-time 20 -sS -o /tmp/response.txt -w '%{http_code}' \
+                -H 'Content-Type: application/json; charset=utf-8' \
+                --data-binary @/tmp/indexnow.json "$endpoint" || true)
+              echo "$host -> $endpoint -> HTTP $code"
+              case "$code" in
+                200|202) ;;
+                *) cat /tmp/response.txt || true; exit 1 ;;
+              esac
+            done
+          }
 
-          for endpoint in "https://api.indexnow.org/indexnow" "https://yandex.com/indexnow"; do
-            code=$(curl -sS -o /tmp/response.txt -w '%{http_code}'               -H 'Content-Type: application/json; charset=utf-8'               --data-binary @/tmp/indexnow.json "$endpoint" || true)
-            echo "$endpoint -> HTTP $code"
-            cat /tmp/response.txt || true
-            echo
-            case "$code" in
-              200|202) ;;
-              *) exit 1 ;;
-            esac
+          for host in "${hosts[@]}"; do
+            submit_host "$host"
           done
