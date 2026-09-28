@@ -1,13 +1,9 @@
 name: Notify IndexNow
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "**/*.html"
-      - "sitemap.xml"
-      - "robots.txt"
-      - "9577e669864c32ece6c3603f0d674ad360dd3b89.txt"
+  workflow_run:
+    workflows: ["pages build and deployment"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
