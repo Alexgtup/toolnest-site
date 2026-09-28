@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://renocalc.pages.dev/sitemap.xml
+Sitemap: https://renocalc-3p1.pages.dev/sitemap.xml
